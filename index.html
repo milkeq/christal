@@ -3,44 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Pastel Dodge</title>
+<title>Pastel 30s Dodge</title>
 <style>
-html,body{
-margin:0;
-padding:0;
-overflow:hidden;
-background:#000;
-font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-}
-
-canvas{
-position:absolute;
-left:0;
-top:0;
-}
+html,body{margin:0;padding:0;overflow:hidden;background:#000;font-family:-apple-system,BlinkMacSystemFont,sans-serif;}
+canvas{position:absolute;left:0;top:0;}
 
 #nameScreen{
-position:absolute;
-inset:0;
-display:flex;
-flex-direction:column;
-align-items:center;
-justify-content:flex-start;
+position:absolute;inset:0;
+display:flex;flex-direction:column;
+align-items:center;justify-content:flex-start;
 background:linear-gradient(#AEE3FF,#CFF4FF);
-overflow-y:auto;
-padding:20px 10px 100px 10px;
+overflow-y:auto;padding:20px 10px 100px 10px;
+z-index:10;
 }
 
 .name-grid{
 display:grid;
 grid-template-columns:1fr 1fr;
-gap:12px;
-width:95%;
-max-width:500px;
+gap:12px;width:95%;max-width:500px;
 }
 
 .name-btn{
-background:rgba(255,255,255,0.75);
+background:rgba(255,255,255,0.8);
 backdrop-filter:blur(8px);
 border-radius:18px;
 padding:14px 10px;
@@ -49,67 +33,47 @@ box-shadow:0 6px 15px rgba(0,0,0,0.1);
 font-size:14px;
 transition:transform 0.15s ease;
 }
+.name-btn:active{transform:scale(0.9);}
 
-.name-btn:active{
-transform:scale(0.92);
-}
-
-#ui{
-position:absolute;
-inset:0;
-pointer-events:none;
-}
+#ui{position:absolute;inset:0;pointer-events:none;}
 
 .control{
-position:absolute;
-bottom:20px;
-width:70px;
-height:70px;
+position:absolute;bottom:20px;
+width:70px;height:70px;
 border-radius:50%;
 background:rgba(255,255,255,0.3);
 backdrop-filter:blur(6px);
-display:flex;
-align-items:center;
-justify-content:center;
+display:flex;align-items:center;justify-content:center;
 font-size:26px;
 box-shadow:0 6px 20px rgba(0,0,0,0.15);
 pointer-events:auto;
 transition:transform 0.1s ease;
 }
-
-.control:active{
-transform:scale(0.9);
-}
-
+.control:active{transform:scale(0.9);}
 #leftBtn{left:20px;}
 #rightBtn{right:20px;}
 
 #jumpBtn{
-left:50%;
-transform:translateX(-50%);
-width:85px;
-height:85px;
+left:50%;transform:translateX(-50%);
+width:85px;height:85px;
 background:linear-gradient(145deg,#7EC8FF,#4BA3F2);
 color:#fff;
 }
 
 #gameOver{
-position:absolute;
-inset:0;
+position:absolute;inset:0;
 display:none;
-align-items:center;
-justify-content:center;
+align-items:center;justify-content:center;
 background:rgba(0,0,0,0.3);
 backdrop-filter:blur(4px);
 }
 
 .modal{
-background:rgba(255,255,255,0.85);
+background:rgba(255,255,255,0.9);
 border-radius:20px;
 padding:25px;
 text-align:center;
-width:80%;
-max-width:300px;
+width:80%;max-width:300px;
 box-shadow:0 10px 30px rgba(0,0,0,0.2);
 }
 
@@ -121,7 +85,6 @@ background:#8ED081;
 color:#fff;
 font-size:14px;
 }
-
 </style>
 </head>
 <body>
@@ -151,17 +114,17 @@ const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 
 let W,H;
-function resize(){
-W=canvas.width=window.innerWidth;
-H=canvas.height=window.innerHeight;
-}
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;}
 resize();
-window.addEventListener("resize",resize);
+addEventListener("resize",resize);
 
 const faceImg=new Image();
 faceImg.src="face.png";
 
-let selectedName="";
+let selectedName=null;
+let gameStarted=false;
+let gameEnded=false;
+
 const names=["김묘윤","째희","쑤영","은써","써린","써율","꼰쏠","빠론","민써","채워이","쑤쑤아","쑤민","씨은","째은","파프리캌","유랴이"];
 const grid=document.getElementById("nameGrid");
 
@@ -170,63 +133,80 @@ let btn=document.createElement("div");
 btn.className="name-btn";
 btn.innerText=n;
 btn.onclick=()=>{
-btn.style.transform="scale(1.1)";
-setTimeout(()=>{
 selectedName=n;
 document.getElementById("nameScreen").style.display="none";
-},150);
+startGame();
 };
 grid.appendChild(btn);
 });
 
-let gravity=0.6;
+let gravity=0.7;
 let friction=0.85;
-let faces=[];
-let particles=[];
-let score=0;
-let best=localStorage.getItem("bestScore")||0;
-let lives=10;
-let slow=1;
-let shakeTime=0;
 
-const player={
-x:0,y:0,
-w:0,h:0,
-vx:0,vy:0,
-grounded:false
-};
+let faces=[];
+let score=0;
+let timer=30;
+let spawnRate=900;
+let spawnInterval;
+let difficultyMultiplier=1;
+
+const player={x:0,y:0,w:0,h:0,vx:0,vy:0,grounded:false};
 
 function init(){
 player.w=W*0.09;
 player.h=player.w;
 player.x=W/2-player.w/2;
 player.y=H*0.7-player.h;
-player.vx=0;
-player.vy=0;
+player.vx=0;player.vy=0;
 faces=[];
-particles=[];
 score=0;
-lives=10;
+timer=30;
+difficultyMultiplier=1;
+gameEnded=false;
+}
+
+function startGame(){
+if(!selectedName) return;
+init();
+gameStarted=true;
+
+spawnInterval=setInterval(spawnFace,spawnRate);
+
+setInterval(()=>{
+if(!gameStarted||gameEnded)return;
+timer--;
+
+if(timer<=0){
+endGame();
+}
+
+if(timer<=5){
+difficultyMultiplier=3;   // 마지막 5초 폭증
+}else{
+difficultyMultiplier=1 + (30-timer)*0.05;
+}
+
+},1000);
 }
 
 function spawnFace(){
-if(faces.length>8)return;
+if(gameEnded) return;
+
 faces.push({
 x:Math.random()*W,
 y:-50,
-size:W*0.1,
-vy:2+Math.random()*2+score*0.05,
+size:W*(0.09+Math.random()*0.05),
+vy:(3+Math.random()*2)*difficultyMultiplier,
 rot:Math.random()*6
 });
 }
 
-setInterval(spawnFace,800);
-
 function update(){
+if(!gameStarted||gameEnded) return;
+
 player.vy+=gravity;
 player.x+=player.vx;
 player.y+=player.vy;
-
 player.vx*=friction;
 
 let ground=H*0.7;
@@ -234,36 +214,20 @@ if(player.y+player.h>ground){
 player.y=ground-player.h;
 player.vy=0;
 player.grounded=true;
-}else{
-player.grounded=false;
-}
+}else player.grounded=false;
 
 faces.forEach((f,i)=>{
-f.y+=f.vy*slow;
-f.rot+=0.02;
+f.y+=f.vy;
+f.rot+=0.03;
 if(f.y>H){
 faces.splice(i,1);
 score++;
 }
 if(collide(player,f)){
-hit();
 faces.splice(i,1);
+score=Math.max(0,score-2); // 충돌 패널티
 }
 });
-
-particles.forEach((p,i)=>{
-p.x+=p.vx;
-p.y+=p.vy;
-p.life--;
-if(p.life<=0)particles.splice(i,1);
-});
-
-if(slow<1){
-slow+=0.02;
-}
-if(shakeTime>0){
-shakeTime--;
-}
 }
 
 function collide(a,b){
@@ -273,45 +237,21 @@ a.y<b.y+b.size &&
 a.y+a.h>b.y;
 }
 
-function hit(){
-if(lives<=0)return;
-lives--;
-slow=0.3;
-shakeTime=20;
-for(let i=0;i<8;i++){
-particles.push({
-x:player.x+player.w/2,
-y:player.y+player.h/2,
-vx:(Math.random()-0.5)*6,
-vy:(Math.random()-0.5)*6,
-life:20
-});
-}
-if(lives<=0){
-gameOver();
-}
-}
+function draw(){
+ctx.clearRect(0,0,W,H);
 
-function drawBackground(){
 ctx.fillStyle="#AEE3FF";
 ctx.fillRect(0,0,W,H);
 ctx.fillStyle="#8ED081";
 ctx.beginPath();
 ctx.moveTo(0,H*0.7);
 ctx.quadraticCurveTo(W/2,H*0.65,W,H*0.7);
-ctx.lineTo(W,H);
-ctx.lineTo(0,H);
+ctx.lineTo(W,H);ctx.lineTo(0,H);
 ctx.fill();
-}
 
-function drawPlayer(){
 ctx.fillStyle="#fff";
 ctx.fillRect(player.x,player.y,player.w,player.h);
-ctx.fillStyle="rgba(0,0,0,0.2)";
-ctx.fillRect(player.x,player.y+player.h,player.w,6);
-}
 
-function drawFaces(){
 faces.forEach(f=>{
 ctx.save();
 ctx.translate(f.x+f.size/2,f.y+f.size/2);
@@ -319,81 +259,43 @@ ctx.rotate(f.rot);
 ctx.drawImage(faceImg,-f.size/2,-f.size/2,f.size,f.size);
 ctx.restore();
 });
-}
 
-function drawParticles(){
-ctx.fillStyle="red";
-particles.forEach(p=>{
-ctx.globalAlpha=p.life/20;
-ctx.fillRect(p.x,p.y,4,4);
-ctx.globalAlpha=1;
-});
-}
-
-function drawUI(){
-ctx.fillStyle="red";
-for(let i=0;i<lives;i++){
-ctx.fillRect(W/2-80+i*16,20,12,12);
-}
 ctx.fillStyle="#000";
-ctx.fillText("점수 "+score,20,30);
-ctx.fillText("최고 "+best,20,50);
+ctx.fillText("남은시간 "+timer,20,30);
+ctx.fillText("피한개수 "+score,20,50);
 }
 
-function gameOver(){
-document.getElementById("gameOver").style.display="flex";
-if(score>best){
-best=score;
-localStorage.setItem("bestScore",best);
+function loop(){
+update();
+draw();
+requestAnimationFrame(loop);
 }
-document.getElementById("scoreText").innerText="점수 "+score+"\n최고 "+best;
+
+function endGame(){
+gameEnded=true;
+clearInterval(spawnInterval);
+document.getElementById("gameOver").style.display="flex";
+document.getElementById("scoreText").innerText=
+"30초 동안 피한 개수\n"+score+" 개";
 }
 
 function restart(){
 document.getElementById("gameOver").style.display="none";
-init();
+startGame();
 }
 
-function loop(){
-ctx.clearRect(0,0,W,H);
-
-if(shakeTime>0){
-let dx=(Math.random()-0.5)*shakeTime;
-let dy=(Math.random()-0.5)*shakeTime;
-ctx.save();
-ctx.translate(dx,dy);
-drawBackground();
-drawFaces();
-drawPlayer();
-drawParticles();
-ctx.restore();
-}else{
-drawBackground();
-drawFaces();
-drawPlayer();
-drawParticles();
-}
-
-drawUI();
-update();
-requestAnimationFrame(loop);
-}
-
-document.getElementById("leftBtn").ontouchstart=()=>player.vx=-6;
-document.getElementById("rightBtn").ontouchstart=()=>player.vx=6;
+document.getElementById("leftBtn").ontouchstart=()=>player.vx=-7;
+document.getElementById("rightBtn").ontouchstart=()=>player.vx=7;
 document.getElementById("leftBtn").ontouchend=()=>player.vx=0;
 document.getElementById("rightBtn").ontouchend=()=>player.vx=0;
+
 document.getElementById("jumpBtn").ontouchstart=()=>{
 if(player.grounded){
-player.vy=-12;
+player.vy=-14;
 }
 };
 
-faceImg.onload=()=>{
-init();
-loop();
-};
+faceImg.onload=()=>loop();
 </script>
-
 </body>
 </html>
